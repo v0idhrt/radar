@@ -8,7 +8,6 @@ from src.models.news import News, Company
 from src.core.database import Database
 from src.utils.deduplication import deduplicate_news, sort_by_relevance
 from src.utils.text_processing import calculate_relevance
-from datetime import datetime
 # Search Services
 from src.services.search.google_search import GoogleSearchService
 from src.services.search.yandex_search import YandexSearchService
@@ -18,7 +17,6 @@ from src.services.search.serper_search import SerperSearchService
 from src.services.social.twitter_parser import TwitterParser
 from src.services.social.telegram_parser import TelegramParser
 from .logging_service import get_logger
-
 
 logger = get_logger(__name__)
 
@@ -149,14 +147,19 @@ class NewsAggregator:
         # Save to database (only entries that satisfy the window)
         if save_to_db:
             saved_count = 0
+            duplicate_count = 0
             for news in filtered_news:
-                if self.db.add_news(news):
+                result = self.db.add_news(news)
+                if result:
                     saved_count += 1
+                else:
+                    duplicate_count += 1
 
             self.db.update_company_last_searched(company_name)
 
             logger.info(
-                "Сохранено %s новых материалов по '%s'", saved_count, company_name
+                "Сохранено %s новых материалов по '%s' (дубликатов: %s)",
+                saved_count, company_name, duplicate_count
             )
 
         logger.info(

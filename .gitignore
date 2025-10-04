@@ -54,8 +54,6 @@ Thumbs.db
 radar_session.session
 *.session
 ACTIONS/
-ai-services/
-finam-service/
 test/
 requirements.txt
 .pytest_cache/

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 
 from src.models.news import News, Company, Source
+from src.core.database_pool import get_db_connection as get_pooled_connection
 
 
 DB_PATH = "radar_news.db"
@@ -13,16 +14,9 @@ DB_PATH = "radar_news.db"
 
 @contextmanager
 def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    try:
+    """Использует connection pool вместо прямого подключения"""
+    with get_pooled_connection(DB_PATH) as conn:
         yield conn
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
 
 
 class Database:
@@ -67,12 +61,43 @@ class Database:
                 )
             """)
 
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS stock_tickers (
+                    ticker TEXT PRIMARY KEY,
+                    company_name TEXT NOT NULL,
+                    exchange TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT
+                )
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS anomalies (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ticker TEXT NOT NULL,
+                    company_name TEXT NOT NULL,
+                    z_score REAL NOT NULL,
+                    delta REAL NOT NULL,
+                    direction TEXT NOT NULL,
+                    price REAL NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    news_collected INTEGER DEFAULT 0,
+                    news_count INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                )
+            """)
+
             # Create indexes
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_company ON news(company_name)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_source ON news(source)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_publish_date ON news(publish_date)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_url ON news(url)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_dedup_group ON news(dedup_group)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tickers_company ON stock_tickers(company_name)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tickers_exchange ON stock_tickers(exchange)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_anomalies_ticker ON anomalies(ticker)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_anomalies_timestamp ON anomalies(timestamp)")
 
     @staticmethod
     def add_company(company: Company) -> int:
@@ -259,6 +284,148 @@ class Database:
                     type=row['type'],
                     enabled=bool(row['enabled']),
                     last_used=datetime.fromisoformat(row['last_used']).replace(tzinfo=timezone.utc) if row['last_used'] else None
+                )
+                for row in rows
+            ]
+
+    # Ticker Operations
+    @staticmethod
+    def add_ticker(ticker: str, company_name: str, exchange: str) -> bool:
+        """Add stock ticker mapping"""
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO stock_tickers (ticker, company_name, exchange, created_at)
+                    VALUES (?, ?, ?, ?)
+                """, (ticker, company_name, exchange, datetime.now(timezone.utc).isoformat()))
+                return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def get_company_by_ticker(ticker: str) -> Optional[str]:
+        """Get company name by ticker"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            row = cursor.execute(
+                "SELECT company_name FROM stock_tickers WHERE ticker = ?",
+                (ticker,)
+            ).fetchone()
+            return row['company_name'] if row else None
+
+    @staticmethod
+    def get_ticker_by_company(company_name: str) -> Optional[str]:
+        """Get ticker by company name"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            row = cursor.execute(
+                "SELECT ticker FROM stock_tickers WHERE company_name = ?",
+                (company_name,)
+            ).fetchone()
+            return row['ticker'] if row else None
+
+    @staticmethod
+    def get_all_tickers() -> List[Dict[str, str]]:
+        """Get all stock tickers"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            rows = cursor.execute("SELECT ticker, company_name, exchange FROM stock_tickers").fetchall()
+            return [
+                {
+                    'ticker': row['ticker'],
+                    'company_name': row['company_name'],
+                    'exchange': row['exchange']
+                }
+                for row in rows
+            ]
+
+    # Anomaly Operations
+    @staticmethod
+    def add_anomaly(ticker: str, company_name: str, z_score: float, delta: float,
+                    direction: str, price: float, timestamp: str, timeframe: str,
+                    news_count: int) -> int:
+        """Add anomaly record"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO anomalies (ticker, company_name, z_score, delta, direction,
+                                      price, timestamp, timeframe, news_collected, news_count, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
+            """, (ticker, company_name, z_score, delta, direction, price, timestamp,
+                  timeframe, news_count, datetime.now(timezone.utc).isoformat()))
+            return cursor.lastrowid
+
+    @staticmethod
+    def get_recent_anomalies(limit: int = 20) -> List[Dict[str, Any]]:
+        """Get recent anomalies"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            rows = cursor.execute("""
+                SELECT * FROM anomalies
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+            return [dict(row) for row in rows]
+
+    @staticmethod
+    def get_impactful_anomalies(limit: int = 10) -> List[Dict[str, Any]]:
+        """Get anomalies with news (impactful events)"""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            rows = cursor.execute("""
+                SELECT * FROM anomalies
+                WHERE news_collected = 1 AND news_count > 0
+                ORDER BY ABS(z_score) DESC, created_at DESC
+                LIMIT ?
+            """, (limit,)).fetchall()
+
+            return [dict(row) for row in rows]
+
+    @staticmethod
+    def get_hot_news(hours: int = 24, limit: int = 50) -> List[News]:
+        """
+        Получить "горячие новости" - свежие новости, связанные со значимыми аномалиями рынка
+        
+        Args:
+            hours: Количество часов назад для поиска новостей (по умолчанию 24)
+            limit: Максимальное количество новостей
+            
+        Returns:
+            Список горячих новостей, отсортированных по важности (z_score) и времени
+        """
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Рассчитываем временную метку для фильтрации
+            from datetime import timedelta
+            cutoff_time = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+            
+            # Получаем новости, связанные с недавними значимыми аномалиями
+            rows = cursor.execute("""
+                SELECT DISTINCT n.*, a.z_score, a.delta, a.direction, a.timestamp as anomaly_timestamp
+                FROM news n
+                INNER JOIN anomalies a ON n.company_name = a.company_name
+                WHERE a.created_at >= ?
+                    AND a.news_collected = 1
+                    AND COALESCE(n.publish_date, n.collected_at) >= ?
+                ORDER BY ABS(a.z_score) DESC, n.publish_date DESC, n.collected_at DESC
+                LIMIT ?
+            """, (cutoff_time, cutoff_time, limit)).fetchall()
+            
+            return [
+                News(
+                    id=row['id'],
+                    company_name=row['company_name'],
+                    title=row['title'],
+                    content=row['content'],
+                    url=row['url'],
+                    source=row['source'],
+                    publish_date=datetime.fromisoformat(row['publish_date']).replace(tzinfo=timezone.utc) if row['publish_date'] else None,
+                    collected_at=datetime.fromisoformat(row['collected_at']).replace(tzinfo=timezone.utc),
+                    relevance_score=row['relevance_score'],
+                    dedup_group=row['dedup_group']
                 )
                 for row in rows
             ]

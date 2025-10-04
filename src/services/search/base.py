@@ -7,14 +7,19 @@ import requests
 import re
 import time
 import html
+import asyncio
 from dateutil import parser as date_parser
 from bs4 import BeautifulSoup
 
 from src.models.news import News
 from src.core.config import config
+from src.core.rate_limiter import get_rate_limiters
 from ..logging_service import get_logger
 
 logger = get_logger(__name__)
+
+# Глобальный rate limiter
+rate_limiters = get_rate_limiters()
 
 
 # Base Search Service
@@ -60,12 +65,13 @@ class BaseSearchService(ABC):
         """Check if the service is properly configured with API keys"""
         pass
 
-    def _make_request(self, url: str, params: dict = None, headers: dict = None) -> Optional[dict]:
+    async def _make_request_async(self, url: str, api_name: str, params: dict = None, headers: dict = None) -> Optional[dict]:
         """
-        Make HTTP request with error handling and retry logic
+        Make HTTP request with rate limiting, error handling and retry logic
 
         Args:
             url: URL to request
+            api_name: API name for rate limiting (e.g., 'google', 'serper')
             params: Query parameters
             headers: HTTP headers
 
@@ -78,6 +84,9 @@ class BaseSearchService(ABC):
 
         for attempt in range(self.max_retries):
             try:
+                # Wait for rate limit
+                await rate_limiters.acquire(api_name, wait=True)
+                
                 logger.debug(
                     "HTTP запрос (попытка %s/%s): %s, params=%s",
                     attempt + 1, self.max_retries, url, params
@@ -110,9 +119,31 @@ class BaseSearchService(ABC):
                         "Ошибка HTTP-запроса (попытка %s/%s): %s. Повтор через %s сек",
                         attempt + 1, self.max_retries, e, delay
                     )
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
 
         return None
+    
+    def _make_request(self, url: str, params: dict = None, headers: dict = None) -> Optional[dict]:
+        """
+        Synchronous wrapper for _make_request_async (deprecated, use async version)
+        """
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Determine API name from URL
+        api_name = 'default'
+        if 'google' in url:
+            api_name = 'google'
+        elif 'serper' in url:
+            api_name = 'serper'
+        elif 'yandex' in url or 'ya.ru' in url:
+            api_name = 'yandex'
+            
+        return loop.run_until_complete(self._make_request_async(url, api_name, params, headers))
 
     # --- Domain Filtering ---------------------------------------------------
 

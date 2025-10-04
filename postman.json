@@ -1,0 +1,452 @@
+{
+	"info": {
+		"_postman_id": "26d927c1-2623-4881-9c1a-2081e5a73523",
+		"name": "Radar News Aggregator API",
+		"description": "Complete API collection for Radar News Aggregator with all endpoints",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "19373408"
+	},
+	"item": [
+		{
+			"name": "Health & Info",
+			"item": [
+				{
+					"name": "Root - API Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								""
+							]
+						},
+						"description": "Get API information and available endpoints"
+					},
+					"response": []
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/health",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"health"
+							]
+						},
+						"description": "Check API health status"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Available Sources",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/sources",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"sources"
+							]
+						},
+						"description": "Get list of configured search APIs and social media parsers"
+					},
+					"response": []
+				}
+			],
+			"description": "General API information and health checks"
+		},
+		{
+			"name": "News Collection",
+			"item": [
+				{
+					"name": "Collect News - Basic",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_name\": \"Tesla\",\n  \"max_results_per_source\": 20,\n  \"use_search\": true,\n  \"use_social\": true,\n  \"save_to_db\": true\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/collect",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"collect"
+							]
+						},
+						"description": "Collect news for a company using all available sources"
+					},
+					"response": []
+				},
+				{
+					"name": "Collect News - With Date Range",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_name\": \"Apple\",\n  \"max_results_per_source\": 10,\n  \"use_search\": true,\n  \"use_social\": true,\n  \"save_to_db\": true,\n  \"start_date\": \"2025-01-01T00:00:00Z\",\n  \"end_date\": \"2025-02-01T00:00:00Z\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/collect",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"collect"
+							]
+						},
+						"description": "Collect news within a specific date range"
+					},
+					"response": []
+				},
+				{
+					"name": "Collect News - Search Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_name\": \"Microsoft\",\n  \"max_results_per_source\": 30,\n  \"use_search\": true,\n  \"use_social\": false,\n  \"save_to_db\": true\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/collect",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"collect"
+							]
+						},
+						"description": "Collect news only from search APIs (Google, Yandex, Serper)"
+					},
+					"response": []
+				},
+				{
+					"name": "Collect News - Social Media Only",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_name\": \"Google\",\n  \"max_results_per_source\": 25,\n  \"use_search\": false,\n  \"use_social\": true,\n  \"save_to_db\": true\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/collect",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"collect"
+							]
+						},
+						"description": "Collect news only from social media (Twitter, Telegram)"
+					},
+					"response": []
+				},
+				{
+					"name": "Collect News - Without Saving",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"company_name\": \"Amazon\",\n  \"max_results_per_source\": 10,\n  \"use_search\": true,\n  \"use_social\": true,\n  \"save_to_db\": false\n}"
+						},
+						"url": {
+							"raw": "http://localhost:8000/api/collect",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"collect"
+							]
+						},
+						"description": "Collect news without saving to database (preview mode)"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for collecting news from various sources"
+		},
+		{
+			"name": "News Retrieval",
+			"item": [
+				{
+					"name": "Get All News for Company",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/news/Tesla?limit=100",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"news",
+								"Tesla"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "100",
+									"description": "Maximum number of results (1-500)"
+								}
+							]
+						},
+						"description": "Get all news for a company from database"
+					},
+					"response": []
+				},
+				{
+					"name": "Get News - With Date Filter",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/news/Apple?start_date=2025-01-01T00:00:00Z&end_date=2025-02-01T00:00:00Z&limit=200",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"news",
+								"Apple"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2025-01-01T00:00:00Z",
+									"description": "Start date in ISO format"
+								},
+								{
+									"key": "end_date",
+									"value": "2025-02-01T00:00:00Z",
+									"description": "End date in ISO format"
+								},
+								{
+									"key": "limit",
+									"value": "200",
+									"description": "Maximum number of results"
+								}
+							]
+						},
+						"description": "Get news for a company within a specific date range"
+					},
+					"response": []
+				},
+				{
+					"name": "Get News - Start Date Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/news/Microsoft?start_date=2025-01-15T00:00:00Z&limit=150",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"news",
+								"Microsoft"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2025-01-15T00:00:00Z",
+									"description": "Get news after this date"
+								},
+								{
+									"key": "limit",
+									"value": "150"
+								}
+							]
+						},
+						"description": "Get news starting from a specific date (no end date)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get News - End Date Only",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/news/Google?end_date=2025-02-15T23:59:59Z&limit=100",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"news",
+								"Google"
+							],
+							"query": [
+								{
+									"key": "end_date",
+									"value": "2025-02-15T23:59:59Z",
+									"description": "Get news before this date"
+								},
+								{
+									"key": "limit",
+									"value": "100"
+								}
+							]
+						},
+						"description": "Get news up to a specific date (no start date)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get News - Last Week",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/news/Amazon?start_date=2025-09-26T00:00:00Z&end_date=2025-10-03T23:59:59Z&limit=300",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"news",
+								"Amazon"
+							],
+							"query": [
+								{
+									"key": "start_date",
+									"value": "2025-09-26T00:00:00Z",
+									"description": "7 days ago"
+								},
+								{
+									"key": "end_date",
+									"value": "2025-10-03T23:59:59Z",
+									"description": "Today"
+								},
+								{
+									"key": "limit",
+									"value": "300"
+								}
+							]
+						},
+						"description": "Get news from the last 7 days"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints for retrieving news from database with date filtering"
+		},
+		{
+			"name": "Statistics",
+			"item": [
+				{
+					"name": "Get Company Statistics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8000/api/stats/Tesla",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8000",
+							"path": [
+								"api",
+								"stats",
+								"Tesla"
+							]
+						},
+						"description": "Get statistics for company news collection (total articles, by source, available sources)"
+					},
+					"response": []
+				}
+			],
+			"description": "Statistics endpoints"
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}

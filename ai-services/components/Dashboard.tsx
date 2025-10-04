@@ -58,11 +58,11 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, stockData, analyzedNews, 
                 )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+            <div className="dashboard-grid grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="card-enhanced bg-gray-800/50 p-6 rounded-lg border border-gray-700">
                     <StockChart data={stockData} />
                 </div>
-                <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+                <div className="card-enhanced bg-gray-800/50 p-6 rounded-lg border border-gray-700">
                     {isAnalyzingNews && analyzedNews.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full space-y-4 text-center text-gray-400">
                             <LoadingSpinner />

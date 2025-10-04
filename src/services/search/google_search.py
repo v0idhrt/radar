@@ -128,12 +128,13 @@ class GoogleSearchService(BaseSearchService):
                         if html_date and not publish_date:
                             publish_date = html_date
 
+                    source_label = self._extract_source_label(item, url)
                     news_item = self._create_news_item(
                         company_name=company_name,
                         title=self._clean_text(item.get('title', '')),
                         content=self._clean_text(content),
                         url=url,
-                        source='google',
+                        source=source_label,
                         publish_date=publish_date
                     )
                     news_items.append(news_item)
@@ -149,6 +150,49 @@ class GoogleSearchService(BaseSearchService):
         )
 
         return news_items
+
+    def _extract_source_label(self, item: dict, fallback_url: str) -> str:
+        pagemap = item.get('pagemap', {}) if isinstance(item, dict) else {}
+
+        metatags = pagemap.get('metatags') or []
+        if isinstance(metatags, dict):
+            metatags = [metatags]
+
+        label_keys = (
+            'og:site_name',
+            'twitter:site',
+            'twitter:creator',
+            'application-name',
+            'publisher',
+        )
+
+        for meta in metatags:
+            if not isinstance(meta, dict):
+                continue
+            for key in label_keys:
+                value = meta.get(key)
+                if value:
+                    cleaned = value.strip()
+                    if cleaned.startswith('@'):
+                        cleaned = cleaned[1:]
+                    if cleaned:
+                        return cleaned
+
+        source = item.get('displayLink') or item.get('htmlFormattedUrl') or ''
+        if isinstance(source, str) and source:
+            cleaned = source.replace('www.', '').strip()
+            return cleaned.split('/')[0] if '/' in cleaned else cleaned
+
+        if fallback_url:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(fallback_url)
+                netloc = parsed.netloc.replace('www.', '').strip()
+                return netloc or 'unknown'
+            except Exception:
+                pass
+
+        return 'unknown'
 
     def _extract_publish_date(self, item: dict) -> Optional[datetime]:
         pagemap = item.get('pagemap', {}) if isinstance(item, dict) else {}

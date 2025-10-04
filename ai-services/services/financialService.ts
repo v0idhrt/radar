@@ -9,6 +9,12 @@ interface CompanyInfo {
   company_name: string;
 }
 
+export interface TickerSuggestion {
+  ticker: string;
+  company_name: string;
+  exchange?: string;
+}
+
 /**
  * Fetch stock data from Radar API (proxied from Finam)
  */
@@ -71,6 +77,23 @@ export const fetchImpactfulAnomalies = async (limit: number = 10): Promise<any[]
     return [];
   } catch (error) {
     console.error('Error fetching impactful anomalies:', error);
+    return [];
+  }
+};
+
+export const fetchAvailableTickers = async (): Promise<TickerSuggestion[]> => {
+  try {
+    const response = await fetch(`${RADAR_API_URL}/api/tickers`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch tickers (${response.status})`);
+    }
+    const data = await response.json();
+    if (!data || !Array.isArray(data.tickers)) {
+      return [];
+    }
+    return data.tickers;
+  } catch (error) {
+    console.error('Error fetching tickers:', error);
     return [];
   }
 };

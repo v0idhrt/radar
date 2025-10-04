@@ -9,6 +9,8 @@ import {
     fetchAnalysisStatus,
     mergeAnalysisResults,
     AnalysisStatus,
+    fetchAvailableTickers,
+    TickerSuggestion,
 } from './services/financialService';
 import TickerInput from './components/TickerInput';
 import Dashboard from './components/Dashboard';
@@ -26,6 +28,7 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [impactfulAnomalies, setImpactfulAnomalies] = useState<any[]>([]);
     const [analysisStatuses, setAnalysisStatuses] = useState<Record<string, AnalysisStatus>>({});
+    const [availableTickers, setAvailableTickers] = useState<TickerSuggestion[]>([]);
 
     const mergeStatusMap = useCallback((prev: Record<string, AnalysisStatus>, updates: AnalysisStatus[]) => {
         if (!updates.length) return prev;
@@ -36,22 +39,65 @@ const App: React.FC = () => {
         return next;
     }, []);
 
+    const resolveTicker = useCallback((input: string) => {
+        const trimmed = input.trim();
+        if (!trimmed) {
+            return null;
+        }
+
+        const upper = trimmed.toUpperCase();
+        const suggestions = availableTickers;
+
+        const direct = suggestions.find(item => item.ticker.toUpperCase() === upper);
+        if (direct) {
+            return direct;
+        }
+
+        if (!upper.includes('@')) {
+            const withSuffix = `${upper}@MISX`;
+            const bySuffix = suggestions.find(item => item.ticker.toUpperCase() === withSuffix);
+            if (bySuffix) {
+                return bySuffix;
+            }
+        }
+
+        const byCompany = suggestions.find(item => item.company_name.toLowerCase() === trimmed.toLowerCase());
+        if (byCompany) {
+            return byCompany;
+        }
+
+        const partialCompany = suggestions.find(item => item.company_name.toLowerCase().includes(trimmed.toLowerCase()));
+        if (partialCompany) {
+            return partialCompany;
+        }
+
+        return null;
+    }, [availableTickers]);
+
     const handleTickerSubmit = useCallback(async (submittedTicker: string) => {
         setIsLoading(true);
         setIsAnalyzingNews(false);
         setError(null);
-        setTicker(submittedTicker.toUpperCase());
+        const resolved = resolveTicker(submittedTicker);
+        if (!resolved) {
+            setIsLoading(false);
+            setError('Не удалось найти тикер для введённого значения. Попробуйте выбрать из списка.');
+            return;
+        }
+
+        const upperTicker = resolved.ticker.toUpperCase();
+        setTicker(upperTicker);
         setStockData([]);
         setNewsArticles([]);
         setAnalyzedNews([]);
-        setCompanyName(null);
+        setCompanyName(resolved.company_name ?? null);
         setAnalysisStatuses({});
 
         try {
             const [company, stock, rawNews] = await Promise.all([
-                fetchCompanyInfo(submittedTicker.toUpperCase()),
-                fetchStockData(submittedTicker),
-                fetchRecentNews(submittedTicker, 5),
+                fetchCompanyInfo(upperTicker),
+                fetchStockData(upperTicker),
+                fetchRecentNews(upperTicker, 10),
             ]);
 
             if (company?.company_name) {
@@ -67,7 +113,7 @@ const App: React.FC = () => {
             }
 
             setNewsArticles(rawNews);
-            const queueResponse = await queueNewsAnalysis(submittedTicker.toUpperCase(), rawNews);
+            const queueResponse = await queueNewsAnalysis(upperTicker, rawNews);
             const initialMap: Record<string, AnalysisStatus> = {};
             queueResponse.results.forEach(status => {
                 initialMap[status.articleId] = status;
@@ -82,7 +128,7 @@ const App: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [mergeStatusMap]);
+    }, [resolveTicker, mergeStatusMap]);
 
     // Polling для важных аномалий
     useEffect(() => {
@@ -98,6 +144,14 @@ const App: React.FC = () => {
         const interval = setInterval(loadAnomalies, 30000);
 
         return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const loadTickers = async () => {
+            const tickers = await fetchAvailableTickers();
+            setAvailableTickers(tickers);
+        };
+        loadTickers();
     }, []);
 
     const handleAnomalyClick = useCallback((ticker: string) => {
@@ -155,9 +209,9 @@ const App: React.FC = () => {
 
     return (
         <div className="bg-gray-900 min-h-screen text-white font-sans">
-            <header className="py-8 text-center border-b border-gray-800">
+            <header className="py-8 text-center border-b border-gray-800 animate-fade-in">
                 <div className="container mx-auto px-4">
-                     <h1 className="text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-500 mb-2">
+                     <h1 className="shimmer-text text-5xl font-bold tracking-tight mb-2">
                         РАДАР: Анализ финансовых новостей
                     </h1>
                      <p className="text-xl text-gray-400">Анализ настроений в новостях на базе ИИ</p>
@@ -165,7 +219,11 @@ const App: React.FC = () => {
             </header>
             <main className="container mx-auto p-4 md:p-8">
                 <section id="input-section" className="mb-12 text-center">
-                    <TickerInput onSubmit={handleTickerSubmit} isLoading={isLoading || isAnalyzingNews} />
+                    <TickerInput
+                        onSubmit={handleTickerSubmit}
+                        isLoading={isLoading || isAnalyzingNews}
+                        suggestions={availableTickers}
+                    />
                 </section>
 
                 {/* Важные события - показывать всегда если есть данные */}

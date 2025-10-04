@@ -3,13 +3,15 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 import asyncio
 import os
 from collections import defaultdict
 from enum import Enum
 import json
+import random
+from urllib.parse import quote
 
 import httpx
 
@@ -122,7 +124,7 @@ async def handle_analyze_article_task(payload: dict):
         error_message = str(exc)
         logger.error(f"Ошибка анализа новости {article.id} ({ticker}): {error_message}", exc_info=True)
         await update_analysis_state(ticker, article, ArticleAnalysisStatus.FAILED, error=error_message)
-        raise
+        return
 
 
 task_queue.register_handler('analyze_news_article', handle_analyze_article_task)
@@ -132,7 +134,7 @@ task_queue.register_handler('analyze_news_article', handle_analyze_article_task)
 async def startup_event():
     """Запуск worker'ов при старте приложения"""
     logger.info("Запуск системы очередей задач")
-    await task_queue.start_workers(num_workers=3)  # 3 worker'а для параллельной обработки
+    await task_queue.start_workers(num_workers=10)  # 10 worker'ов для параллельной обработки
     logger.info("Система очередей задач запущена")
 
 
@@ -227,10 +229,33 @@ async def call_ollama_for_article(article: AnalyzeNewsArticle) -> Dict[str, str]
     }
 
     async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT) as client:
-        response = await client.post(
-            f"{OLLAMA_HOST}/api/chat",
-            json=payload
-        )
+        max_attempts = 3
+        response: Optional[httpx.Response] = None
+
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = await client.post(
+                    f"{OLLAMA_HOST}/api/chat",
+                    json=payload
+                )
+                break
+            except httpx.RequestError as exc:
+                wait_seconds = min(5, 2 ** (attempt - 1))
+                logger.warning(
+                    "Attempt %s/%s: failed to reach Ollama at %s: %s",
+                    attempt,
+                    max_attempts,
+                    OLLAMA_HOST,
+                    exc,
+                )
+                if attempt >= max_attempts:
+                    raise RuntimeError(
+                        f"Failed to connect to Ollama at {OLLAMA_HOST}: {exc}") from exc
+                await asyncio.sleep(wait_seconds)
+
+        if response is None:
+            raise RuntimeError("Ollama request failed: no response received")
+
         if response.status_code != 200:
             body = response.text[:500]
             raise RuntimeError(f"Ollama request failed with status {response.status_code}: {body}")
@@ -337,12 +362,25 @@ class CollectNewsRequest(BaseModel):
 class AnomalyWebhook(BaseModel):
     """Webhook payload from Finam-Service"""
     ticker: str
+    timeframe: str
+    timestamp: str
+    open: float
+    close: float
+    high: float
+    low: float
+    volume: int
     z_score: float
     delta: float
-    direction: str  # "buy" or "sell"
-    price: float
-    timestamp: str
-    timeframe: str  # "M1", "M5", "M30"
+    delta_pct: float
+
+    # Computed properties for backward compatibility
+    @property
+    def direction(self) -> str:
+        return "buy" if self.delta > 0 else "sell"
+
+    @property
+    def price(self) -> float:
+        return self.close
 
 
 # Response Models (continued)
@@ -674,7 +712,8 @@ async def get_news_analysis_status(
     return results
 
 
-@app.post("/api/webhook/anomaly")
+@app.post("/api/anomaly")
+@app.post("/api/webhook/anomaly")  # Alias for backward compatibility
 async def handle_anomaly_webhook(anomaly: AnomalyWebhook):
     """
     Webhook от Finam-Service при обнаружении аномалии z-score
@@ -782,51 +821,96 @@ async def get_ticker_quotes(ticker: str):
     """
     Получить котировки от Finam-Service
     """
-    logger.info(f"Fetching quotes for {ticker} from Finam-Service")
+    logger.info(
+        "Fetching quotes for %s from Finam-Service (%s)",
+        ticker,
+        config.FINAM_SERVICE_URL,
+    )
 
     try:
         import requests
-        from datetime import timedelta
 
         # Добавить @MISX если отсутствует (Finam требует этот формат)
         ticker_finam = ticker.upper()
         if not ticker_finam.endswith('@MISX'):
             ticker_finam = f"{ticker_finam}@MISX"
 
-        # Формируем запрос к Finam
-        end_ts = int(datetime.now(timezone.utc).timestamp())
+        finam_url = config.FINAM_SERVICE_URL.rstrip('/')
+        timeout = max(config.FINAM_SERVICE_TIMEOUT, 1)
+
+        encoded_ticker = quote(ticker_finam, safe='@')
 
         response = requests.get(
-            "http://localhost:8001/bars",
-            params={"ticker_name": ticker_finam, "timestamp": end_ts - 60*60*2},  # 2 часа назад
-            timeout=10
+            f"{finam_url}/history/{encoded_ticker}",
+            params={"timeframe": "D", "days": 180},
+            timeout=timeout
         )
 
         if response.ok:
             data = response.json()
             bars = data.get("bars", [])
 
-            # Конвертировать в StockPoint формат для frontend
             points = []
-            base_time = datetime.now(timezone.utc) - timedelta(hours=2)
+            for bar in bars:
+                timestamp = bar.get("timestamp")
+                close_price = bar.get("close")
+                if timestamp is None or close_price is None:
+                    continue
 
-            for i, bar in enumerate(bars):
-                point_time = base_time + timedelta(minutes=i)
+                try:
+                    date = timestamp.split("T")[0]
+                    price = float(close_price)
+                except (AttributeError, ValueError, TypeError):
+                    continue
+
                 points.append({
-                    "date": point_time.isoformat().split('T')[0],
-                    "price": bar["close"]
+                    "date": date,
+                    "price": round(price, 2)
                 })
 
-            return {"ticker": ticker, "quotes": points}
-        else:
-            raise HTTPException(status_code=502, detail="Finam service unavailable")
+            if points:
+                return {
+                    "ticker": ticker,
+                    "quotes": points,
+                    "source": "finam",
+                    "timeframe": data.get("timeframe", "D")
+                }
+
+            logger.warning("Finam history returned no usable data for %s. Falling back to mock quotes.", ticker)
+            return {"ticker": ticker, "quotes": _generate_mock_quotes(), "source": "mock"}
+
+        logger.error(
+            "Finam history responded with status %s for %s. Using mock quotes.",
+            response.status_code,
+            ticker,
+        )
+        return {"ticker": ticker, "quotes": _generate_mock_quotes(), "source": "mock", "detail": "Finam unavailable"}
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error connecting to Finam: {e}")
-        raise HTTPException(status_code=502, detail=f"Finam service error: {str(e)}")
+        logger.error(f"Error connecting to Finam: {e}", exc_info=True)
+        logger.warning("Providing mock quotes for %s", ticker)
+        return {"ticker": ticker, "quotes": _generate_mock_quotes(), "source": "mock", "detail": "Finam connection error"}
     except Exception as e:
-        logger.error(f"Error fetching quotes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Error fetching quotes: {e}", exc_info=True)
+        return {"ticker": ticker, "quotes": _generate_mock_quotes(), "source": "mock", "detail": "internal error"}
+
+
+def _generate_mock_quotes(days: int = 60) -> List[Dict[str, Any]]:
+    """Generate fallback quote data when Finam service is unavailable."""
+    points: List[Dict[str, Any]] = []
+    price = random.uniform(80, 160)
+    today = datetime.now(timezone.utc).date()
+
+    for delta in range(days, -1, -1):
+        date = today - timedelta(days=delta)
+        price += random.uniform(-3, 3)
+        price = max(price, 5)
+        points.append({
+            "date": date.isoformat(),
+            "price": round(price, 2)
+        })
+
+    return points
 
 
 @app.get("/api/anomalies/impactful")

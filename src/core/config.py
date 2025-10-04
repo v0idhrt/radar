@@ -28,6 +28,7 @@ class Config:
         "TWITTER_ACCOUNTS",
         ""  
     )
+    ENABLE_YANDEX: bool = os.getenv("ENABLE_TWITTER", "false").lower() in ("true", "1", "yes")
 
     ENABLE_TWITTER: bool = os.getenv("ENABLE_TWITTER", "false").lower() in ("true", "1", "yes")
 
@@ -37,6 +38,9 @@ class Config:
     )
 
     DATABASE_PATH: str = os.getenv("DATABASE_PATH", "radar_news.db")
+
+    FINAM_SERVICE_URL: str = os.getenv("FINAM_SERVICE_URL", "http://localhost:8001")
+    FINAM_SERVICE_TIMEOUT: float = float(os.getenv("FINAM_SERVICE_TIMEOUT", "10"))
 
     MAX_RESULTS_PER_SOURCE: int = int(os.getenv("MAX_RESULTS_PER_SOURCE", "50"))
     REQUEST_TIMEOUT: int = int(os.getenv("REQUEST_TIMEOUT", "30"))

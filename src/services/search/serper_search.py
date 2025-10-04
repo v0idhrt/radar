@@ -145,12 +145,13 @@ class SerperSearchService(BaseSearchService):
                             if html_date and not publish_date:
                                 publish_date = html_date
 
+                        source_label = self._extract_source_label(item, url)
                         news_item = self._create_news_item(
                             company_name=company_name,
                             title=self._clean_text(item.get('title', '')),
                             content=self._clean_text(content),
                             url=url,
-                            source='serper',
+                            source=source_label,
                             publish_date=publish_date
                         )
                         news_items.append(news_item)
@@ -172,3 +173,24 @@ class SerperSearchService(BaseSearchService):
         )
 
         return news_items
+
+    def _extract_source_label(self, item: dict, fallback_url: str) -> str:
+        source = item.get('source') or item.get('source_url') or ''
+        if isinstance(source, str) and source.strip():
+            return source.strip()
+
+        display_url = item.get('link') or item.get('url') or ''
+        if isinstance(display_url, str) and display_url:
+            cleaned = display_url.replace('https://', '').replace('http://', '').replace('www.', '').strip()
+            return cleaned.split('/')[0] if '/' in cleaned else cleaned
+
+        if fallback_url:
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(fallback_url)
+                netloc = parsed.netloc.replace('www.', '').strip()
+                return netloc or 'unknown'
+            except Exception:
+                pass
+
+        return 'unknown'

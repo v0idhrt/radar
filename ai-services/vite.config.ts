@@ -8,15 +8,18 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts: [
+          '.ngrok-free.app',    // Allow all ngrok hosts
+          '.ngrok.io',          // Alternative ngrok domain
+          'localhost',
+          '127.0.0.1',
+        ],
+        cors: true,
       },
       plugins: [react()],
+      // Note: API keys and LLM configs removed - now handled by backend
       define: {
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.OPENROUTER_API_KEY': JSON.stringify(env.OPENROUTER_API_KEY),
-        'process.env.OLLAMA_HOST': JSON.stringify(env.OLLAMA_HOST || 'http://localhost:11434'),
-        'process.env.GEMINI_MODEL': JSON.stringify(env.GEMINI_MODEL || 'gemini-1.5-flash'),
-        'process.env.OPENROUTER_MODEL': JSON.stringify(env.OPENROUTER_MODEL || 'google/gemma-2-9b-it'),
-        'process.env.OLLAMA_MODEL': JSON.stringify(env.OLLAMA_MODEL || 'gemma2:9b')
+        // Keep only if needed for other purposes
       },
       resolve: {
         alias: {

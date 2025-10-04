@@ -7,9 +7,13 @@ import json
 
 from src.models.news import News, Company, Source
 from src.core.database_pool import get_db_connection as get_pooled_connection
+from src.services.logging_service import get_logger
 
 
 DB_PATH = "radar_news.db"
+
+
+logger = get_logger(__name__)
 
 
 @contextmanager
@@ -142,7 +146,7 @@ class Database:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO news (company_name, title, content, url, source,
+                    INSERT OR IGNORE INTO news (company_name, title, content, url, source,
                                      publish_date, collected_at, relevance_score, dedup_group)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
@@ -156,8 +160,16 @@ class Database:
                     news.relevance_score,
                     news.dedup_group
                 ))
-                return cursor.lastrowid
-        except sqlite3.IntegrityError:
+                # Если строка не была вставлена (дубликат), lastrowid будет 0
+                inserted_id = cursor.lastrowid
+                if inserted_id == 0:
+                    # Дубликат - логируем и возвращаем None
+                    logger.debug(f"Duplicate news skipped: {news.url} for {news.company_name}")
+                    return None
+                return inserted_id
+        except sqlite3.IntegrityError as e:
+            # На всякий случай оставляем обработку IntegrityError
+            logger.warning(f"IntegrityError when adding news (should not happen with OR IGNORE): {e}")
             return None
 
     @staticmethod
@@ -374,14 +386,33 @@ class Database:
         """Get anomalies with news (impactful events)"""
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            rows = cursor.execute("""
-                SELECT * FROM anomalies
-                WHERE news_collected = 1 AND news_count > 0
-                ORDER BY ABS(z_score) DESC, created_at DESC
-                LIMIT ?
-            """, (limit,)).fetchall()
 
-            return [dict(row) for row in rows]
+            fetch_limit = max(limit * 3, limit)
+            rows = cursor.execute("""
+                SELECT a.*
+                FROM anomalies a
+                WHERE EXISTS (
+                    SELECT 1 FROM news n
+                    WHERE n.company_name = a.company_name
+                )
+                ORDER BY a.created_at DESC
+                LIMIT ?
+            """, (fetch_limit,)).fetchall()
+
+            unique_by_company: Dict[str, Dict[str, Any]] = {}
+            for row in rows:
+                company_key = row['company_name'] or row['ticker']
+                if company_key not in unique_by_company:
+                    unique_by_company[company_key] = dict(row)
+
+            # Sort by absolute z-score, then by created_at desc
+            sorted_rows = sorted(
+                unique_by_company.values(),
+                key=lambda item: (abs(item.get('z_score', 0)), item.get('created_at')),
+                reverse=True
+            )
+
+            return sorted_rows[:limit]
 
     @staticmethod
     def get_hot_news(hours: int = 24, limit: int = 50) -> List[News]:

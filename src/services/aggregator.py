@@ -17,6 +17,7 @@ from src.services.search.serper_search import SerperSearchService
 from src.services.social.twitter_parser import TwitterParser
 from src.services.social.telegram_parser import TelegramParser
 from .logging_service import get_logger
+from src.core.config import config
 
 logger = get_logger(__name__)
 
@@ -186,6 +187,11 @@ class NewsAggregator:
         service_names = []
 
         for name, service in self.search_services.items():
+            # Skip Yandex if disabled
+            if name == 'yandex' and not config.ENABLE_YANDEX:
+                logger.info("Yandex search отключен (ENABLE_YANDEX=false)")
+                continue
+
             if service.is_configured():
                 # Run sync search in thread pool
                 logger.debug("Запускаем поисковый сервис '%s'", name)

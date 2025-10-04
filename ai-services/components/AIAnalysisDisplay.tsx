@@ -34,7 +34,7 @@ const AIAnalysisDisplay: React.FC<AIAnalysisDisplayProps> = ({ analyzedNews }) =
     }, [analyzedNews]);
 
     return (
-        <div className="bg-gray-800/50 p-6 rounded-lg border border-gray-700">
+        <div className="card-enhanced bg-gray-800/50 p-6 rounded-lg border border-gray-700">
             <h3 className="text-xl font-semibold text-white mb-4">Общий анализ настроений</h3>
             <div className="space-y-3">
                 <div>
@@ -42,8 +42,11 @@ const AIAnalysisDisplay: React.FC<AIAnalysisDisplayProps> = ({ analyzedNews }) =
                         <span>Позитивные</span>
                         <span>{sentimentDistribution.positive.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2.5">
-                        <div className="bg-green-500 h-2.5 rounded-full" style={{ width: `${sentimentDistribution.positive}%` }}></div>
+                    <div className="progress-bar w-full bg-gray-700 rounded-full h-2.5">
+                        <div
+                            className="bg-gradient-to-r from-green-500 to-green-400 h-2.5 rounded-full transition-all duration-700"
+                            style={{ width: `${sentimentDistribution.positive}%` }}
+                        ></div>
                     </div>
                 </div>
                  <div>
@@ -51,8 +54,11 @@ const AIAnalysisDisplay: React.FC<AIAnalysisDisplayProps> = ({ analyzedNews }) =
                         <span>Негативные</span>
                         <span>{sentimentDistribution.negative.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2.5">
-                        <div className="bg-red-500 h-2.5 rounded-full" style={{ width: `${sentimentDistribution.negative}%` }}></div>
+                    <div className="progress-bar w-full bg-gray-700 rounded-full h-2.5">
+                        <div
+                            className="bg-gradient-to-r from-red-500 to-red-400 h-2.5 rounded-full transition-all duration-700"
+                            style={{ width: `${sentimentDistribution.negative}%` }}
+                        ></div>
                     </div>
                 </div>
                  <div>
@@ -60,8 +66,11 @@ const AIAnalysisDisplay: React.FC<AIAnalysisDisplayProps> = ({ analyzedNews }) =
                         <span>Нейтральные</span>
                         <span>{sentimentDistribution.neutral.toFixed(1)}%</span>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2.5">
-                        <div className="bg-gray-500 h-2.5 rounded-full" style={{ width: `${sentimentDistribution.neutral}%` }}></div>
+                    <div className="progress-bar w-full bg-gray-700 rounded-full h-2.5">
+                        <div
+                            className="bg-gradient-to-r from-gray-500 to-gray-400 h-2.5 rounded-full transition-all duration-700"
+                            style={{ width: `${sentimentDistribution.neutral}%` }}
+                        ></div>
                     </div>
                 </div>
             </div>

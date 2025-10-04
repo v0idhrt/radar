@@ -38,11 +38,12 @@ const SentimentBadge: React.FC<{ sentiment: Sentiment }> = ({ sentiment }) => {
 const NewsList: React.FC<NewsListProps> = ({ articles, onSelectArticle, selectedArticleId }) => {
     return (
         <div className="space-y-4">
-            {articles.sort((a,b) => b.timestamp - a.timestamp).map(article => (
+            {articles.sort((a,b) => b.timestamp - a.timestamp).map((article, index) => (
                 <div
                     key={article.id}
                     onClick={() => onSelectArticle(article)}
-                    className={`p-4 rounded-lg cursor-pointer transition-all duration-200 ease-in-out border-2 ${selectedArticleId === article.id ? 'bg-gray-700 border-cyan-500' : 'bg-gray-900/50 border-gray-700 hover:border-cyan-600 hover:bg-gray-800/60'}`}
+                    className={`news-item card-enhanced p-4 rounded-lg cursor-pointer border-2 ${selectedArticleId === article.id ? 'bg-gray-700/70 border-cyan-500' : 'bg-gray-900/50 border-gray-700 hover:border-cyan-600'}`}
+                    style={{ '--item-index': index } as React.CSSProperties}
                 >
                     <div className="flex justify-between items-start mb-2">
                         <h4 className="font-bold text-md text-white pr-4">{article.headline}</h4>

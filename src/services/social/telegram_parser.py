@@ -3,6 +3,7 @@
 from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 import asyncio
+import re
 
 from src.services.social.base import BaseSocialParser
 from src.models.news import News
@@ -141,6 +142,7 @@ class TelegramParser(BaseSocialParser):
 
             # Get channel entity
             channel = await client.get_entity(channel_username)
+            channel_title = getattr(channel, 'title', channel_username.lstrip('@'))
 
             # Calculate offset_date: use start_date if provided, otherwise last 7 or 30 days in deep mode
             if start_date:
@@ -165,14 +167,26 @@ class TelegramParser(BaseSocialParser):
 
             # Filter messages mentioning company
             for msg in messages:
-                if msg.text and self._message_contains_company(msg.text, search_variations):
-                    # Create news item with FULL text (no truncation)
+                if not msg.text:
+                    continue
+
+                segments = self._split_message_segments(msg.text)
+                for idx, segment in enumerate(segments):
+                    cleaned_segment = self._clean_message_text(segment)
+                    if not cleaned_segment:
+                        continue
+
+                    if not self._message_contains_company(cleaned_segment, search_variations):
+                        continue
+
+                    title = self._build_title(channel_title, cleaned_segment)
+                    url_suffix = '' if idx == 0 else f"?part={idx+1}"
                     news_item = self._create_news_item(
                         company_name=company_name,
-                        title=f"{channel_username} - {msg.date.strftime('%Y-%m-%d')}",
-                        content=msg.text,  # Full text, no [:500] truncation
-                        url=f"https://t.me/{channel_username.replace('@', '')}/{msg.id}",
-                        source='telegram',
+                        title=title,
+                        content=cleaned_segment,
+                        url=f"https://t.me/{channel_username.replace('@', '')}/{msg.id}{url_suffix}",
+                        source=f"telegram:{channel_username.replace('@', '')}",
                         publish_date=msg.date
                     )
                     news_items.append(news_item)
@@ -249,6 +263,51 @@ class TelegramParser(BaseSocialParser):
                     return True
 
         return False
+
+    def _split_message_segments(self, text: str) -> List[str]:
+        """Split long telegram message into logical segments."""
+        if not text:
+            return []
+
+        splitter = re.compile(r"(?:Please open Telegram to view this post\s*VIEW IN TELEGRAM)+", re.IGNORECASE)
+        parts = [part.strip() for part in splitter.split(text) if part.strip()]
+        if parts:
+            return parts
+        return [text]
+
+    def _clean_message_text(self, text: str) -> str:
+        """Normalize telegram message content by removing service phrases and noise."""
+        if not text:
+            return ''
+
+        lines = []
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            lowered = line.lower()
+            if 'please open telegram to view this post' in lowered:
+                continue
+            if 'view in telegram' in lowered:
+                continue
+            if lowered.startswith('read more on telegram'):
+                continue
+
+            if re.fullmatch(r"[\d\s:+\-.,❤🔥👍🥰👏🤝⚡💯🕊😎🫡🙏💋🎄🍾🦄😇🐳💔🆒🤝🪄🍀\u263a-\U0001FAFF]+", line):
+                continue
+
+            if line not in lines:
+                lines.append(line)
+
+        return '\n'.join(lines).strip()
+
+    def _build_title(self, channel_title: str, content: str) -> str:
+        """Create human-readable title for telegram post."""
+        snippet = content.replace('\n', ' ').strip()
+        if len(snippet) > 120:
+            snippet = snippet[:117].rstrip() + '...'
+        return f"{channel_title}: {snippet}"
 
     async def parse_specific_channels(
         self,

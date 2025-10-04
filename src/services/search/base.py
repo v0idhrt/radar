@@ -393,8 +393,17 @@ class BaseSearchService(ABC):
             logger.debug("Не удалось извлечь содержимое из %s", url)
             return None, publish_date
 
+        except requests.exceptions.HTTPError as e:
+            # Специальная обработка для 403/404/etc
+            if e.response.status_code == 403:
+                logger.debug("403 Forbidden (site blocks scraping): %s", url)
+            elif e.response.status_code == 404:
+                logger.debug("404 Not Found: %s", url)
+            else:
+                logger.warning("HTTP error extracting from %s: %s", url, e)
+            return None, None
         except Exception as e:
-            logger.warning("Ошибка извлечения полного текста из %s: %s", url, e)
+            logger.debug("Error extracting full text from %s: %s", url, str(e)[:100])
             return None, None
 
     def _extract_with_trafilatura(self, html_content: bytes, url: str) -> Optional[str]:

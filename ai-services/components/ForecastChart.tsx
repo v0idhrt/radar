@@ -87,6 +87,7 @@ const ForecastChart: React.FC<ForecastChartProps> = ({ ticker, stockData, analyz
                             <Tooltip
                                 contentStyle={{ backgroundColor: '#1A202C', border: '1px solid #4A5568' }}
                                 labelStyle={{ color: '#E2E8F0' }}
+                                formatter={(value: number) => `₽${value.toFixed(2)}`}
                             />
                             <Legend wrapperStyle={{ color: '#E2E8F0' }} />
                             <Area type="monotone" dataKey="price" name="Историческая цена" stroke="#2DD4BF" fill="url(#colorPrice)" />

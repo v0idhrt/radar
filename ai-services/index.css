@@ -205,6 +205,39 @@
   opacity: 0;
 }
 
+/* Анимация для горячих новостей - скользящее появление */
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.hot-news-card {
+  animation: slideInFromLeft 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+/* Анимация пульсации для бейджей */
+@keyframes badgePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+.badge-animate {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
 /* Пульсация для важных элементов */
 .pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;

@@ -49,13 +49,21 @@ const Dashboard: React.FC<DashboardProps> = ({ ticker, stockData, analyzedNews, 
 
     return (
         <div className="space-y-8 animate-fade-in">
-            <div>
-                <h2 className="text-4xl font-bold text-white">
-                    Панель управления для <span className="text-cyan-400">{companyName ?? ticker}</span>
-                </h2>
-                {companyName && (
-                    <p className="text-gray-400 text-lg mt-1">Тикер: {ticker}</p>
-                )}
+            <div className="relative">
+                <div className="absolute -inset-1 bg-gradient-to-r from-cyan-600 to-teal-600 rounded-lg blur opacity-20"></div>
+                <div className="relative bg-gray-800/50 border border-gray-700/50 rounded-lg p-6">
+                    <h2 className="text-4xl font-bold text-white">
+                        Панель управления для <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-teal-400">{companyName ?? ticker}</span>
+                    </h2>
+                    {companyName && (
+                        <div className="flex items-center gap-3 mt-3">
+                            <span className="text-gray-400 text-lg">Тикер: {ticker}</span>
+                            <span className="px-3 py-1 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 text-sm rounded-full">
+                                MOEX
+                            </span>
+                        </div>
+                    )}
+                </div>
             </div>
 
             <div className="dashboard-grid grid grid-cols-1 lg:grid-cols-2 gap-8">

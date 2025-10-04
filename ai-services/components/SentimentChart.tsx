@@ -54,13 +54,19 @@ const SentimentChart: React.FC<SentimentChartProps> = ({ data }) => {
           data={data}
           margin={{ top: 5, right: 30, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" />
-          <XAxis dataKey="date" stroke="#A0AEC0" tick={{ fontSize: 12 }} />
-          <YAxis 
-            stroke="#A0AEC0" 
-            tick={{ fontSize: 12 }} 
-            domain={[-1.2, 1.2]} 
+          <CartesianGrid strokeDasharray="3 3" stroke="#4A5568" opacity={0.3} />
+          <XAxis
+            dataKey="date"
+            stroke="#A0AEC0"
+            tick={{ fontSize: 12 }}
+            tickLine={false}
+          />
+          <YAxis
+            stroke="#A0AEC0"
+            tick={{ fontSize: 12 }}
+            domain={[-1.2, 1.2]}
             ticks={[-1, 0, 1]}
+            tickLine={false}
             tickFormatter={(tick) => {
               if (tick === 1) return 'Позитив.';
               if (tick === 0) return 'Нейтрал.';
@@ -75,14 +81,24 @@ const SentimentChart: React.FC<SentimentChartProps> = ({ data }) => {
               <stop offset={off} stopColor="#48BB78" stopOpacity={0.8}/>
               <stop offset={off} stopColor="#F56565" stopOpacity={0.8}/>
             </linearGradient>
+            <filter id="sentimentGlow">
+              <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
           </defs>
-          <Area 
-            type="monotone" 
-            dataKey="averageSentiment" 
-            name="Среднее настроение" 
+          <Area
+            type="monotone"
+            dataKey="averageSentiment"
+            name="Среднее настроение"
             stroke="#718096"
-            strokeWidth={2} 
-            fill="url(#splitColor)" 
+            strokeWidth={2.5}
+            fill="url(#splitColor)"
+            filter="url(#sentimentGlow)"
+            animationDuration={1500}
+            animationEasing="ease-out"
           />
         </AreaChart>
       </ResponsiveContainer>

@@ -140,8 +140,8 @@ const App: React.FC = () => {
         // Загрузить сразу
         loadAnomalies();
 
-        // Обновлять каждые 30 секунд
-        const interval = setInterval(loadAnomalies, 30000);
+        // Обновлять каждые 5 секунд
+        const interval = setInterval(loadAnomalies, 5000);
 
         return () => clearInterval(interval);
     }, []);
@@ -228,7 +228,7 @@ const App: React.FC = () => {
 
                 {/* Важные события - показывать всегда если есть данные */}
                 {!isLoading && impactfulAnomalies.length > 0 && (
-                    <div className={ticker ? "mb-8" : ""}>
+                    <div className={ticker ? "mb-8 animate-fade-in" : "animate-fade-in"}>
                         <ImpactfulNews
                             anomalies={impactfulAnomalies}
                             onTickerClick={handleAnomalyClick}
